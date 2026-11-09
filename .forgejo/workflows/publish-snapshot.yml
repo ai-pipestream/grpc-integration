@@ -19,6 +19,10 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: publish-snapshot
+  cancel-in-progress: false
+
 jobs:
   publish-snapshot:
     runs-on: ubuntu-latest
@@ -31,7 +35,7 @@ jobs:
           java-version: '25'
 
       - name: Full build and test suite
-        run: ./gradlew build --no-daemon --console=plain
+        run: ./gradlew build --no-daemon --console=plain --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx1g -XX:ActiveProcessorCount=2'
 
       - name: Publish snapshot to the dev registry
         env:
@@ -39,4 +43,9 @@ jobs:
           # The ambient token cannot publish packages on this instance even
           # with `permissions: packages: write` (kept above as defense in depth).
           FORGEJO_TOKEN: ${{ secrets.REGISTRY_PUBLISH_TOKEN }}
-        run: ./gradlew publishAllPublicationsToRegistryRepository --no-daemon --console=plain
+        run: |
+          test -n "$FORGEJO_TOKEN" || { echo 'REGISTRY_PUBLISH_TOKEN is required' >&2; exit 1; }
+          ./gradlew publishAllPublicationsToRegistryRepository --no-daemon --console=plain --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx1g -XX:ActiveProcessorCount=2'
+
+      - name: Verify anonymous snapshot resolution
+        run: python3 scripts/verify-registry.py

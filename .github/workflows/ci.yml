@@ -7,6 +7,31 @@ on:
   workflow_dispatch:
 
 jobs:
+  published-consumers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: grpc-integration
+      - uses: actions/checkout@v5
+        with:
+          repository: ai-pipestream/grpc-confluence
+          # Pin consumer revisions so main remains testable while split PRs land.
+          ref: 69fb5763106d8f99d5974e5fd6a8f2e860d31d5f
+          path: grpc-confluence
+      - uses: actions/checkout@v5
+        with:
+          repository: ai-pipestream/grpc-microsoft
+          ref: 95a00d852f7ad37e09ce27d9fcf14c69102f2aa6
+          path: grpc-microsoft
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Build consumers from published artifacts without composites
+        run: ./scripts/verify-published-consumers.sh ../grpc-confluence ../grpc-microsoft
+        working-directory: grpc-integration
+
   build:
     runs-on: ubuntu-latest
     steps:

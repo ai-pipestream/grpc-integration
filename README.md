@@ -12,7 +12,7 @@ Maven dependencies:
 | Repository | Connector |
 |---|---|
 | [grpc-confluence](https://github.com/ai-pipestream/grpc-confluence) | Confluence Cloud REST v2 as gRPC |
-| [grpc-microsoft](https://github.com/ai-pipestream/grpc-microsoft) (currently `grpc-sharepoint`) | Microsoft Graph sites, drives, and files as gRPC, plus the Copilot (GCA) connector |
+| [grpc-microsoft](https://github.com/ai-pipestream/grpc-microsoft) | Microsoft Graph sites, drives, and files as gRPC, plus the Copilot (GCA) connector |
 
 Nothing here imports a source API or a source proto. Sources plug in
 through `ServiceLoader` seams (see [Extension points](#extension-points)).
@@ -70,11 +70,26 @@ somewhere else.
 
 ## Publishing
 
+This repository is licensed under Apache-2.0. The extraction from the
+MIT-licensed grpc-confluence repository is recorded in `NOTICE`.
+
 Every module applies `maven-publish`. Snapshots go to the Forgejo registry
 when `FORGEJO_TOKEN` (and optionally `FORGEJO_ACTOR`) is set; without the
 token there is no remote repository and nothing leaves the machine.
 `.forgejo/workflows/publish-snapshot.yml` builds and publishes on every
 push to `main`.
+
+Forgejo is the publishing source of truth. Push the reviewed branch there
+first, then update its GitHub counterpart. Before landing either connector,
+publish the core and run `scripts/verify-registry.py`; a green composite
+build alone does not prove that standalone consumers can resolve snapshots.
+The publishing workflow requires the repository secret
+`REGISTRY_PUBLISH_TOKEN` with package-write access.
+
+`scripts/verify-published-consumers.sh ../grpc-confluence ../grpc-microsoft`
+publishes to a temporary local Maven repository and builds both consumers
+with composite substitution disabled. It never publishes to the remote
+registry and removes its temporary repository on exit.
 
 ```
 FORGEJO_TOKEN=... ./gradlew publishAllPublicationsToRegistryRepository
