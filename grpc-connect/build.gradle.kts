@@ -1,36 +1,23 @@
 plugins {
     `java-library`
+    `java-test-fixtures`
 }
 
+description = "Kafka Connect scaffolding for gRPC Sync sources; connectors extend ChangeSourceConnector / ChangeSourceTask"
+
 dependencies {
-    implementation(project(":grpc-confluence-api"))
-    implementation(project(":grpc-confluence-service"))
-    implementation(project(":grpc-microsoft-api"))
-    implementation(project(":grpc-microsoft-service"))
-    implementation(libs.grpc.netty.shaded)
-    implementation(libs.grpc.stub)
-    implementation(libs.jackson.databind)
+    api(libs.grpc.stub)
+    api(libs.protobuf.java)
+    // Supplied by the Connect worker at runtime.
     compileOnly(libs.kafka.connect.api)
     compileOnly(libs.kafka.clients)
 
+    testFixturesCompileOnly(libs.kafka.connect.api)
+    testFixturesCompileOnly(libs.kafka.clients)
+
     testImplementation(libs.kafka.connect.api)
     testImplementation(libs.kafka.clients)
-    testImplementation(libs.grpc.inprocess)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj)
     testRuntimeOnly(libs.junit.launcher)
-}
-
-tasks.register<Zip>("connectPluginZip") {
-    group = "distribution"
-    description = "Kafka Connect plugin zip (drop into plugin.path)"
-    archiveClassifier.set("plugin")
-    into("grpc-connect") {
-        from(tasks.named("jar"))
-        from(configurations.runtimeClasspath)
-    }
-}
-
-tasks.assemble {
-    dependsOn("connectPluginZip")
 }

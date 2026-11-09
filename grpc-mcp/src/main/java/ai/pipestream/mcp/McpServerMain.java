@@ -1,23 +1,24 @@
 package ai.pipestream.mcp;
 
-import ai.pipestream.confluence.v1.ConfluenceServiceGrpc;
-import ai.pipestream.microsoft.v1.MicrosoftServiceGrpc;
 import ai.pipestream.sync.v1.ConnectionServiceGrpc;
 import ai.pipestream.sync.v1.SyncTableServiceGrpc;
 import io.grpc.ManagedChannel;
 import io.modelcontextprotocol.server.McpServerFeatures;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Combined MCP process. Dials the Confluence, Microsoft, and SyncTable
- * gRPC proxies and exposes their streaming tools on {@code /mcp}.
+ * Combined MCP process. Dials the SyncTable gRPC service for the ledger,
+ * connection, and app tools, plus one channel per {@link McpToolProvider}
+ * found on the classpath (Confluence, Microsoft, ...), and exposes every
+ * tool on one {@code /mcp} endpoint.
  *
- * <p>{@code MCP_PORT} default 8090. Targets:
- * {@code CONFLUENCE_GRPC_TARGET}, {@code MICROSOFT_GRPC_TARGET},
- * {@code SYNC_TABLE_TARGET}.</p>
+ * <p>{@code MCP_PORT} default 8090. {@code SYNC_TABLE_TARGET} default
+ * {@code localhost:9097}; each provider names its own target variable.</p>
  */
 public final class McpServerMain {
 
@@ -32,35 +33,40 @@ public final class McpServerMain {
     }
 
     /**
-     * Dials the Confluence, Microsoft, and SyncTable gRPC targets, starts
-     * streamable HTTP MCP on {@link #ENV_PORT} (default {@link #DEFAULT_PORT}),
-     * and blocks until the process is killed.
+     * Dials SyncTable and every provider target, starts streamable HTTP MCP
+     * on {@link #ENV_PORT} (default {@link #DEFAULT_PORT}), and blocks until
+     * the process is killed.
      *
      * @param args unused
      * @throws Exception if the HTTP server fails to start
      */
     public static void main(String[] args) throws Exception {
-        ManagedChannel confluence = GrpcTargets.channel(GrpcTargets.ENV_CONFLUENCE,
-                GrpcTargets.DEFAULT_CONFLUENCE);
-        ManagedChannel microsoft = GrpcTargets.channel(GrpcTargets.ENV_MICROSOFT,
-                GrpcTargets.DEFAULT_MICROSOFT);
-        ManagedChannel sync = GrpcTargets.channel(GrpcTargets.ENV_SYNC, GrpcTargets.DEFAULT_SYNC);
+        List<ManagedChannel> channels = new ArrayList<>();
         List<McpServerFeatures.SyncToolSpecification> tools = new ArrayList<>();
-        var confluenceStub = ConfluenceServiceGrpc.newBlockingStub(confluence);
-        tools.addAll(ConfluenceMcpTools.of(confluenceStub));
-        tools.addAll(MicrosoftMcpTools.of(MicrosoftServiceGrpc.newBlockingStub(microsoft)));
+        Map<String, String> targets = new LinkedHashMap<>();
+        for (McpToolProvider provider : McpToolProviders.load()) {
+            String target = GrpcTargets.target(provider.targetEnvironmentVariable(),
+                    provider.defaultTarget());
+            ManagedChannel channel = GrpcTargets.channel(provider.targetEnvironmentVariable(),
+                    provider.defaultTarget());
+            channels.add(channel);
+            tools.addAll(provider.tools(channel));
+            targets.put(provider.name(), target);
+            LOG.log(System.Logger.Level.INFO, "mcp tools from {0} -> {1}", provider.name(), target);
+        }
+        ManagedChannel sync = GrpcTargets.channel(GrpcTargets.ENV_SYNC, GrpcTargets.DEFAULT_SYNC);
+        channels.add(sync);
+        targets.put("syncTable", GrpcTargets.target(GrpcTargets.ENV_SYNC, GrpcTargets.DEFAULT_SYNC));
         tools.addAll(SyncTableMcpTools.of(SyncTableServiceGrpc.newBlockingStub(sync)));
         var connections = ConnectionServiceGrpc.newBlockingStub(sync);
-        tools.addAll(ConnectionMcpTools.of(connections, confluenceStub));
-        tools.addAll(AppMcpTools.of(connections));
+        tools.addAll(ConnectionMcpTools.of(connections));
+        tools.addAll(AppMcpTools.of(connections, targets));
 
         int port = parseInt(System.getenv(ENV_PORT), DEFAULT_PORT);
         McpHttpServer server = McpHttpServer.start(port, "pipestream-connectors", tools);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             server.close();
-            GrpcTargets.shutdown(confluence);
-            GrpcTargets.shutdown(microsoft);
-            GrpcTargets.shutdown(sync);
+            channels.forEach(GrpcTargets::shutdown);
         }, "mcp-shutdown"));
         LOG.log(System.Logger.Level.INFO, "mcp streamable-http on :{0}{1}", server.port(),
                 McpHttpServer.ENDPOINT);

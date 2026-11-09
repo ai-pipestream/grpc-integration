@@ -5,19 +5,11 @@ import io.grpc.ManagedChannelBuilder;
 
 import java.util.concurrent.TimeUnit;
 
-/** Plaintext gRPC channels to the other jars in this repo. */
+/** Plaintext gRPC channels from the MCP process to the services it fronts. */
 public final class GrpcTargets {
 
-    /** Environment variable for the Confluence gRPC {@code host:port}. */
-    public static final String ENV_CONFLUENCE = "CONFLUENCE_GRPC_TARGET";
-    /** Environment variable for the Microsoft gRPC {@code host:port}. */
-    public static final String ENV_MICROSOFT = "MICROSOFT_GRPC_TARGET";
     /** Environment variable for the SyncTable gRPC {@code host:port}. */
     public static final String ENV_SYNC = "SYNC_TABLE_TARGET";
-    /** Fallback Confluence target when {@link #ENV_CONFLUENCE} is unset. */
-    public static final String DEFAULT_CONFLUENCE = "localhost:9095";
-    /** Fallback Microsoft target when {@link #ENV_MICROSOFT} is unset. */
-    public static final String DEFAULT_MICROSOFT = "localhost:9096";
     /** Fallback SyncTable target when {@link #ENV_SYNC} is unset. */
     public static final String DEFAULT_SYNC = "localhost:9097";
 
@@ -33,11 +25,20 @@ public final class GrpcTargets {
      * @return a new plaintext channel to the resolved target
      */
     public static ManagedChannel channel(String envName, String fallback) {
-        String target = System.getenv(envName);
-        if (target == null || target.isBlank()) {
-            target = fallback;
-        }
-        return ManagedChannelBuilder.forTarget(target.trim()).usePlaintext().build();
+        return ManagedChannelBuilder.forTarget(target(envName, fallback)).usePlaintext().build();
+    }
+
+    /**
+     * The {@code host:port} in {@code envName}, trimmed, or {@code fallback}
+     * when that variable is unset or blank.
+     *
+     * @param envName environment variable holding a {@code host:port}
+     * @param fallback target used when {@code envName} is missing or blank
+     * @return the resolved target
+     */
+    public static String target(String envName, String fallback) {
+        String value = System.getenv(envName);
+        return value == null || value.isBlank() ? fallback.trim() : value.trim();
     }
 
     /**

@@ -1,7 +1,5 @@
 package ai.pipestream.mcp;
 
-import ai.pipestream.confluence.v1.ConfluenceServiceGrpc;
-import ai.pipestream.confluence.v1.ProbeConnectionRequest;
 import ai.pipestream.sync.v1.Connection;
 import ai.pipestream.sync.v1.ConnectionKind;
 import ai.pipestream.sync.v1.ConnectionOutput;
@@ -31,18 +29,16 @@ public final class ConnectionMcpTools {
     }
 
     /**
-     * Connection catalog tools plus {@code connection_test} via Confluence.
+     * Connection catalog tools. A source that can probe a connection adds
+     * its own {@code connection_test} through {@link McpToolProvider}.
      *
      * @param connections {@code ConnectionService} stub
-     * @param confluence {@code ConfluenceService} stub
      * @return tool specs
      */
     public static List<McpServerFeatures.SyncToolSpecification> of(
-            ConnectionServiceGrpc.ConnectionServiceBlockingStub connections,
-            ConfluenceServiceGrpc.ConfluenceServiceBlockingStub confluence) {
+            ConnectionServiceGrpc.ConnectionServiceBlockingStub connections) {
         return List.of(create(connections), list(connections), get(connections),
-                update(connections), setOutput(connections), test(confluence),
-                delete(connections));
+                update(connections), setOutput(connections), delete(connections));
     }
 
     private static McpServerFeatures.SyncToolSpecification create(
@@ -181,34 +177,6 @@ public final class ConnectionMcpTools {
                             .setConnection(current.toBuilder().setOutput(output).setToken(""))
                             .build()).getConnection();
                     return text(McpJson.write(row(updated)));
-                });
-    }
-
-    private static McpServerFeatures.SyncToolSpecification test(
-            ConfluenceServiceGrpc.ConfluenceServiceBlockingStub confluence) {
-        return tool("connection_test",
-                "Probe a Confluence connection via ConfluenceService.ProbeConnection",
-                McpJson.objectSchema(Map.of(
-                        "connectionId", McpJson.stringProp("Catalog id"),
-                        "baseUrl", McpJson.stringProp("Inline URL for an unsaved probe"),
-                        "email", McpJson.stringProp("Inline email"),
-                        "token", McpJson.stringProp("Inline token"),
-                        "limit", McpJson.intProp("Max spaces to return as evidence")),
-                        List.of()),
-                (exchange, request) -> {
-                    Map<String, Object> args = request.arguments();
-                    var response = confluence.probeConnection(ProbeConnectionRequest.newBuilder()
-                            .setConnectionId(McpJson.argString(args, "connectionId", ""))
-                            .setBaseUrl(McpJson.argString(args, "baseUrl", ""))
-                            .setEmail(McpJson.argString(args, "email", ""))
-                            .setToken(McpJson.argString(args, "token", ""))
-                            .setLimit(McpJson.argInt(args, "limit", 5))
-                            .build());
-                    return text(McpJson.write(Map.of(
-                            "ok", response.getOk(),
-                            "connectionId", response.getConnectionId(),
-                            "spaceKeys", response.getSpaceKeysList(),
-                            "errorMessage", response.getErrorMessage())));
                 });
     }
 

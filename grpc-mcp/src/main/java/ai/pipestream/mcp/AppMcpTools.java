@@ -28,18 +28,35 @@ public final class AppMcpTools {
     }
 
     /**
-     * Runtime setup tools over {@code ConnectionService}.
+     * Runtime setup tools over {@code ConnectionService}, with no gRPC
+     * targets reported by {@code app_status}.
      *
      * @param connections generated stub
      * @return tool specs
      */
     public static List<McpServerFeatures.SyncToolSpecification> of(
             ConnectionServiceGrpc.ConnectionServiceBlockingStub connections) {
-        return List.of(status(connections), setOutput(connections), setKafka(connections));
+        return of(connections, Map.of());
+    }
+
+    /**
+     * Runtime setup tools over {@code ConnectionService}.
+     *
+     * @param connections generated stub
+     * @param targets {@code host:port} per source name (for example
+     *        {@code confluence}, {@code syncTable}); {@code app_status}
+     *        reports each as {@code <name>Target}
+     * @return tool specs
+     */
+    public static List<McpServerFeatures.SyncToolSpecification> of(
+            ConnectionServiceGrpc.ConnectionServiceBlockingStub connections,
+            Map<String, String> targets) {
+        Map<String, String> copy = new LinkedHashMap<>(targets);
+        return List.of(status(connections, copy), setOutput(connections), setKafka(connections));
     }
 
     private static McpServerFeatures.SyncToolSpecification status(
-            ConnectionServiceGrpc.ConnectionServiceBlockingStub stub) {
+            ConnectionServiceGrpc.ConnectionServiceBlockingStub stub, Map<String, String> targets) {
         return tool("app_status",
                 "Show runtime setup: connections, default output, and Kafka (no secrets)",
                 McpJson.objectSchema(Map.of(), List.of()),
@@ -57,12 +74,7 @@ public final class AppMcpTools {
                     body.put("kafkaBootstrapServers", settings.getKafkaBootstrapServers());
                     body.put("kafkaTopic", settings.getKafkaTopic());
                     body.put("kafkaSnapshotsTopic", settings.getKafkaSnapshotsTopic());
-                    body.put("confluenceTarget", target(GrpcTargets.ENV_CONFLUENCE,
-                            GrpcTargets.DEFAULT_CONFLUENCE));
-                    body.put("microsoftTarget", target(GrpcTargets.ENV_MICROSOFT,
-                            GrpcTargets.DEFAULT_MICROSOFT));
-                    body.put("syncTableTarget", target(GrpcTargets.ENV_SYNC,
-                            GrpcTargets.DEFAULT_SYNC));
+                    targets.forEach((source, target) -> body.put(source + "Target", target));
                     return text(McpJson.write(body));
                 });
     }
@@ -172,11 +184,6 @@ public final class AppMcpTools {
         row.put("s3Prefix", output.getS3Prefix());
         row.put("s3Region", output.getS3Region());
         return row;
-    }
-
-    private static String target(String envName, String fallback) {
-        String value = System.getenv(envName);
-        return value == null || value.isBlank() ? fallback : value.trim();
     }
 
     private static McpServerFeatures.SyncToolSpecification tool(String name, String description,

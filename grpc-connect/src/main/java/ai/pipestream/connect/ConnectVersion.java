@@ -1,8 +1,8 @@
 package ai.pipestream.connect;
 
 /**
- * Kafka Connect plugin version shared by the Confluence and Microsoft
- * source connectors and their tasks.
+ * Kafka Connect plugin version shared by every {@link ChangeSourceConnector}
+ * and {@link ChangeSourceTask}.
  */
 public final class ConnectVersion {
 
