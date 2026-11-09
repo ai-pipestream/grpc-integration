@@ -1,11 +1,15 @@
+# syntax=docker/dockerfile:1
 FROM eclipse-temurin:25-jdk AS build
+ARG GRADLE_MAX_WORKERS=2
+ENV JAVA_TOOL_OPTIONS="-XX:ActiveProcessorCount=2"
 WORKDIR /src
 COPY . .
-RUN ./gradlew --no-daemon build :grpc-sync-service:installDist
+RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon --max-workers=${GRADLE_MAX_WORKERS} build :grpc-sync-service:installDist :grpc-mcp:installDist && \
+    find . -path '*/build/test-results/test/TEST-*.xml' -exec awk -F '"' \
+    '/<testsuite / { for (i=1; i<NF; i++) { if ($i ~ / tests=$/) tests+=$(i+1); if ($i ~ / failures=$/) failures+=$(i+1); if ($i ~ / errors=$/) errors+=$(i+1); if ($i ~ / skipped=$/) skipped+=$(i+1) } } END { printf "CONTAINER_TEST_TOTAL tests=%d failures=%d errors=%d skipped=%d\n", tests, failures, errors, skipped; if (tests == 0 || failures != 0 || errors != 0) exit 1 }' {} +
 
 FROM eclipse-temurin:25-jre
 COPY --from=build /src/grpc-sync-service/build/install/grpc-sync-service /opt/sync
-RUN useradd --system --no-create-home sync
-USER sync
+USER 65532:65532
 EXPOSE 9097
 ENTRYPOINT ["/opt/sync/bin/grpc-sync-service"]
