@@ -1,3 +1,7 @@
+# Combined MCP server. The core image carries the sync-table, connection,
+# and app tools; connector tools are McpToolProvider jars dropped into
+# /opt/mcp/ext (for example from grpc-confluence-mcp or grpc-microsoft-mcp,
+# with their runtime dependencies), either in a derived image or a mount.
 FROM eclipse-temurin:25-jdk AS build
 WORKDIR /src
 COPY . .
@@ -5,7 +9,9 @@ RUN ./gradlew --no-daemon build :grpc-mcp:installDist
 
 FROM eclipse-temurin:25-jre
 COPY --from=build /src/grpc-mcp/build/install/grpc-mcp /opt/mcp
-RUN useradd --system --no-create-home mcp
+RUN mkdir -p /opt/mcp/ext && useradd --system --no-create-home mcp
 USER mcp
 EXPOSE 8090
-ENTRYPOINT ["/opt/mcp/bin/grpc-mcp"]
+# The java launcher expands the lib/* and ext/* classpath wildcards itself.
+ENTRYPOINT ["java", "--enable-native-access=ALL-UNNAMED", "--sun-misc-unsafe-memory-access=allow", \
+    "-cp", "/opt/mcp/lib/*:/opt/mcp/ext/*", "ai.pipestream.mcp.McpServerMain"]

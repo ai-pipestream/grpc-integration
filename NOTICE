@@ -1,10 +1,8 @@
-grpc-confluence
+grpc-integration
 Copyright 2026 ai.pipestream
 
 This product includes software developed at ai.pipestream.
 
-The Microsoft Graph Connector Agent (GCA) `.proto` files under
-`grpc-microsoft-connector/src/main/proto/Contracts/` are copied from
-https://github.com/microsoft/Custom-Copilot-Connector-using-Connector-SDK
-and remain Copyright (c) Microsoft Corporation, MIT License. See
-`grpc-microsoft-connector/NOTICE`.
+The modules in this repository were split out of
+https://github.com/ai-pipestream/grpc-confluence, where they were
+published under the MIT License by the same copyright holder.
