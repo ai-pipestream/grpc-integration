@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+# Combined MCP server. The core image carries the sync-table, connection,
+# and app tools; connector tools are McpToolProvider jars dropped into
+# /opt/mcp/ext (for example from grpc-confluence-mcp or grpc-microsoft-mcp,
+# with their runtime dependencies), either in a derived image or a mount.
+FROM eclipse-temurin:25-jdk AS build
+ARG GRADLE_MAX_WORKERS=2
+ENV JAVA_TOOL_OPTIONS="-XX:ActiveProcessorCount=2"
+WORKDIR /src
+COPY . .
+RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon --max-workers=${GRADLE_MAX_WORKERS} build :grpc-sync-service:installDist :grpc-mcp:installDist && \
+    test -n "$(find . -path '*/build/test-results/test/TEST-*.xml' -print -quit)" && \
+    find . -path '*/build/test-results/test/TEST-*.xml' -exec awk -F '"' \
+    '/<testsuite / { for (i=1; i<NF; i++) { if ($i ~ / tests=$/) tests+=$(i+1); if ($i ~ / failures=$/) failures+=$(i+1); if ($i ~ / errors=$/) errors+=$(i+1); if ($i ~ / skipped=$/) skipped+=$(i+1) } } END { printf "CONTAINER_TEST_TOTAL tests=%d failures=%d errors=%d skipped=%d\n", tests, failures, errors, skipped; if (tests == 0 || failures != 0 || errors != 0) exit 1 }' {} +
+
+FROM eclipse-temurin:25-jre
+COPY --from=build /src/grpc-mcp/build/install/grpc-mcp /opt/mcp
+RUN mkdir -p /opt/mcp/ext
+USER 65532:65532
+EXPOSE 8090
+# The java launcher expands the lib/* and ext/* classpath wildcards itself.
+ENTRYPOINT ["java", "--enable-native-access=ALL-UNNAMED", "--sun-misc-unsafe-memory-access=allow", \
+    "-cp", "/opt/mcp/lib/*:/opt/mcp/ext/*", "ai.pipestream.mcp.McpServerMain"]

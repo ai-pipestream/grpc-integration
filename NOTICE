@@ -1,0 +1,8 @@
+grpc-integration
+Copyright 2026 ai.pipestream
+
+This product includes software developed at ai.pipestream.
+
+The modules in this repository were split out of
+https://github.com/ai-pipestream/grpc-confluence, where they were
+published under the MIT License by the same copyright holder.
