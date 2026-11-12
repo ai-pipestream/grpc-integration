@@ -29,6 +29,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare job-local Gradle repository policy
+        run: |
+          task_gradle_home=$(mktemp -d "${RUNNER_TEMP}/grpc-integration-gradle.XXXXXX")
+          python3 scripts/prepare-ci-gradle-home.py "${GRADLE_USER_HOME:-$HOME/.gradle}" "$task_gradle_home"
+          echo "GRADLE_USER_HOME=$task_gradle_home" >> "$GITHUB_ENV"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
