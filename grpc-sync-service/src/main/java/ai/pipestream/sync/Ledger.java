@@ -98,7 +98,8 @@ public interface Ledger extends AutoCloseable {
 
     /**
      * Creates or replaces a catalog row. Empty {@code token} /
-     * {@code client_secret} on an update leave the stored secrets in place.
+     * {@code client_secret} / {@code client_certificate_pem} on an update
+     * leave the stored secrets in place.
      *
      * @param incoming row to store
      * @param creating when true, reject a duplicate id

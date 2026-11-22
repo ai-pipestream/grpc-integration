@@ -317,6 +317,9 @@ public final class AssetStore implements Ledger {
                 if (next.getClientSecret().isEmpty()) {
                     next.setClientSecret(existing.getClientSecret());
                 }
+                if (next.getClientCertificatePem().isEmpty()) {
+                    next.setClientCertificatePem(existing.getClientCertificatePem());
+                }
                 if (next.getDisplayName().isEmpty()) {
                     next.setDisplayName(existing.getDisplayName());
                 }
@@ -364,6 +367,7 @@ public final class AssetStore implements Ledger {
             }
             next.setHasToken(!next.getToken().isEmpty());
             next.setHasClientSecret(!next.getClientSecret().isEmpty());
+            next.setHasClientCertificate(!next.getClientCertificatePem().isEmpty());
             next.setUpdatedAt(timestamp(now));
             return next.build();
         });
