@@ -11,8 +11,9 @@ public final class ConnectionViews {
     }
 
     /**
-     * Returns a copy with {@code token} and {@code client_secret} cleared and
-     * the {@code has_*} flags set from whether those fields were non-empty.
+     * Returns a copy with {@code token}, {@code client_secret} and
+     * {@code client_certificate_pem} cleared and the {@code has_*} flags set
+     * from whether those fields were non-empty.
      *
      * @param connection stored row, possibly with secrets
      * @return redacted row
@@ -21,11 +22,15 @@ public final class ConnectionViews {
         boolean hasToken = !connection.getToken().isEmpty() || connection.getHasToken();
         boolean hasSecret = !connection.getClientSecret().isEmpty()
                 || connection.getHasClientSecret();
+        boolean hasCertificate = !connection.getClientCertificatePem().isEmpty()
+                || connection.getHasClientCertificate();
         return connection.toBuilder()
                 .clearToken()
                 .clearClientSecret()
+                .clearClientCertificatePem()
                 .setHasToken(hasToken)
                 .setHasClientSecret(hasSecret)
+                .setHasClientCertificate(hasCertificate)
                 .build();
     }
 }
