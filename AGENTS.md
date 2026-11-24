@@ -6,7 +6,7 @@ Microsoft (SharePoint Online, OneDrive, Entra) connector, and the two
 repositories that consume their ACL data. Each connector repository has a
 short `AGENTS.md` of its own that points here and adds repo-specific detail.
 
-Snapshot date: 2026-11-23. Branch heads, PR numbers and "proven live" lists
+Snapshot date: 2026-11-24. Branch heads, PR numbers and "proven live" lists
 change daily; check the PRs before relying on them.
 
 ## 1. What the workspace is
@@ -58,19 +58,21 @@ review, tracked in grpc-confluence issues #11 to #21. It is not built yet.
 
 ## 2. Where the code under review lives
 
-`main` holds the split and the read side. Almost all recent work is on open,
-stacked pull request branches. Review the PR branches, not only `main`.
+`main` of the core and both connectors now holds the read side, the write
+rpcs, the ACL data and the Microsoft admin service. These merged:
+
+| Repo | Merged PRs |
+|---|---|
+| grpc-integration | #3 `AclCompleteness` marker, #4 certificate credential on catalog connections, #6 catalog entries whose resource was not fetched |
+| grpc-confluence | #25 all v2 write rpcs, ADF model, v1 attachments and labels, app properties through Forge; #28 ACL data (group rpcs, `GetContentAccess`, `CheckContentPermission`, Sync access records); #44 ledger failures fail the `Sync`; #46 custom content proven live |
+| grpc-microsoft | #2 write rpcs, Entra and SharePoint security reads, term columns, `grpc-microsoft-admin`; #20 ledger failures fail the `Sync` |
+
+Still open, so review these branches as well as `main`:
 
 | Repo | PR | Branch | Base | What |
 |---|---|---|---|---|
-| grpc-integration | #4 | `claude/project-thread-i7updt` | `main` | Certificate credential on catalog connections (`Connection.client_certificate_pem`, write-only) |
-| grpc-integration | #3 | `claude/project-thread-wfp1ob` | `main` | `AclCompleteness` marker (`sync/v1/acl.proto`) |
-| grpc-confluence | #25 | `claude/project-thread-i7updt` | `main` | All 100 v2 write rpcs, ADF model, v1 attachments and labels, app properties through Forge |
-| grpc-confluence | #28 | `claude/project-thread-wfp1ob` | #25 | ACL data: group rpcs, `GetContentAccess`, `CheckContentPermission`, Sync access records |
-| grpc-confluence | #29 | `claude/project-thread-sbyfoc` | #25 | `ConfluenceChangeService.WatchChanges` and the `grpc-confluence-forge` app |
-| grpc-microsoft | #2 | `claude/project-thread-i7updt` | `main` | Write rpcs, Entra and SharePoint security reads, term columns, `grpc-microsoft-admin` |
-| grpc-microsoft | #4 | `claude/project-thread-sbyfoc` | #2 | `MicrosoftChangeService`: delta passes, Graph subscriptions, notification receiver |
-| grpc-microsoft | #20 | `claude/project-thread-vf27e2` | `main` | Ledger write failures fail the `Sync` instead of being logged |
+| grpc-confluence | #29 | `claude/project-thread-sbyfoc` | `main` | `ConfluenceChangeService.WatchChanges` and the `grpc-confluence-forge` app |
+| grpc-microsoft | #4 | `claude/project-thread-sbyfoc` | `claude/project-thread-i7updt` (already merged as #2) | `MicrosoftChangeService`: delta passes, Graph subscriptions, notification receiver |
 | protomolt | #933 (Forgejo) | `claude/project-thread-wfp1ob` | `main` | Identity expansion, `required_rule_sets`, CEL mapping of Confluence and SharePoint ACL records, tests on recorded live records |
 | protomolt-opensearch | #1 | `claude/project-thread-jd2zws` | `main` | The `protomolt-acl` plugin |
 
@@ -216,7 +218,7 @@ through the output SPI. Ledger `asset_id` is
 `{source}:{connection_id}:{kind}:{native_id}`. After a full sweep the
 connector calls `Reconcile`, so rows not seen become `DELETED`.
 
-**Change streams (PoC, PRs #29 and #4).**
+**Change streams (PoC, open PRs grpc-confluence #29 and grpc-microsoft #4).**
 - Confluence: a Forge app with no UI stores product events in Forge KVS
   (7 days). `ConfluenceChangeService.WatchChanges` polls the app's web
   trigger (`take` / `ack`, shared-secret header), re-reads what each event
@@ -228,7 +230,7 @@ connector calls `Reconcile`, so rows not seen become `DELETED`.
   `HttpServer`) is off unless `MICROSOFT_NOTIFICATION_PORT` is set and checks
   `clientState` in constant time.
 
-**ACL data (PRs #28, #2, #3; protomolt #933; protomolt-opensearch #1).**
+**ACL data (connector side on `main`; protomolt #933 and protomolt-opensearch #1 open).**
 - No ACL model of our own. Each connector emits the source's native ACL
   records; protomolt maps them with CEL config into `DocumentSecurity`.
 - Confluence: `Sync` emits `SpaceAccess`, a `ContentAccessChain` per item
@@ -277,17 +279,17 @@ connector calls `Reconcile`, so rows not seen become `DELETED`.
    tests.
 7. **Rule breaks** from section 4 (JSON, Quarkus, caps, warnings
    suppressed, verbose comments).
-8. **Cross-repo seams.** Behaviour that depends on a sibling branch
-   (grpc-integration PRs #3 and #4), ports (the admin service and the sync
-   ledger both default to 9097), shared ids and placeholders.
+8. **Cross-repo seams.** Behaviour that depends on a sibling repository's
+   branch, ports (the admin service and the sync ledger both default to
+   9097), shared ids and placeholders.
 
 ## 8. Known issues (do not re-file)
 
 - grpc-confluence #33 and grpc-microsoft #8: code review of 2026-11-23
-  (silent errors, fake success, JSON hacks), and the issues filed from it:
-  grpc-confluence #35 to #43, grpc-microsoft #10 to #18. Fixes land
-  through branch `claude/project-thread-vf27e2` (grpc-confluence #44 is
-  merged, grpc-microsoft #20 is open).
+  (silent errors, fake success, JSON hacks), and the issues filed from it
+  that are still open: grpc-confluence #35 to #43; grpc-microsoft #10, #12
+  to #18 and #23. The ledger-failure issues (grpc-confluence #34,
+  grpc-microsoft #11) are fixed on `main`.
 - grpc-confluence #27 / grpc-microsoft #3: ACL follow-ups.
 - grpc-confluence #30, #31, #32: Forge deploy, events Forge does not send,
   delivery loss.
@@ -296,7 +298,8 @@ connector calls `Reconcile`, so rows not seen become `DELETED`.
 - Not proven live, by the owner's choice or tenant limits: Confluence data
   classification and Guard Premium redaction; SharePoint term store reads
   (Microsoft serves them to delegated sign-in only); tenant-wide site
-  listing with the restricted app.
+  listing with the restricted app. Confluence custom content is proven live
+  against a Forge custom content type (#46).
 
 ## 9. Reporting findings
 
