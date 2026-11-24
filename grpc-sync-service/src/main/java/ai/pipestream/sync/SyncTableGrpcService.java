@@ -13,6 +13,8 @@ import ai.pipestream.sync.v1.PutCheckpointRequest;
 import ai.pipestream.sync.v1.PutCheckpointResponse;
 import ai.pipestream.sync.v1.ReconcileRequest;
 import ai.pipestream.sync.v1.ReconcileResponse;
+import ai.pipestream.sync.v1.ReconcileScopeRequest;
+import ai.pipestream.sync.v1.ReconcileScopeResponse;
 import ai.pipestream.sync.v1.SyncTableServiceGrpc;
 import ai.pipestream.sync.v1.UpsertAssetRequest;
 import ai.pipestream.sync.v1.UpsertAssetResponse;
@@ -142,6 +144,23 @@ public final class SyncTableGrpcService extends SyncTableServiceGrpc.SyncTableSe
             int deleted = store.reconcile(request.getSource(), request.getRunId(), request.getKind(),
                     request.getConnectionId());
             observer.onNext(ReconcileResponse.newBuilder().setDeleted(deleted).build());
+            observer.onCompleted();
+        } catch (Throwable t) {
+            fail(observer, t);
+        }
+    }
+
+    @Override
+    public void reconcileScope(ReconcileScopeRequest request,
+            StreamObserver<ReconcileScopeResponse> observer) {
+        try {
+            if (request.getScope().isBlank()) {
+                // Without a scope this would be a reconcile of everything.
+                throw new IllegalArgumentException("scope is required");
+            }
+            int deleted = store.reconcile(request.getSource(), request.getRunId(), request.getKind(),
+                    request.getConnectionId(), request.getScope());
+            observer.onNext(ReconcileScopeResponse.newBuilder().setDeleted(deleted).build());
             observer.onCompleted();
         } catch (Throwable t) {
             fail(observer, t);

@@ -35,7 +35,10 @@ rows not seen in that run become `DELETED`. The same process exposes
 record-probe. Connectors, MCP, and a future UI call that gRPC service;
 they do not open the store. `asset_id` is
 `{source}:{connection_id}:{kind}:{native_id}`. Reconcile is
-connection-scoped so two sites of one source do not delete each other.
+connection-scoped so two sites of one source do not delete each other,
+and `ReconcileScope` narrows it further to one `scope` within the
+connection (one drive read again from scratch while the others were read
+incrementally).
 
 When `OUTPUT_DIR` / `OKF_DIR` or `OUTPUT_S3_BUCKET` is set, each completed
 `Sync` writes crawl artifacts through the output SPI. `OutputStore`

@@ -7,6 +7,7 @@ import ai.pipestream.sync.v1.GetAssetRequest;
 import ai.pipestream.sync.v1.ListAssetsRequest;
 import ai.pipestream.sync.v1.ListAssetsResponse;
 import ai.pipestream.sync.v1.ReconcileRequest;
+import ai.pipestream.sync.v1.ReconcileScopeRequest;
 import ai.pipestream.sync.v1.SyncTableServiceGrpc;
 import ai.pipestream.sync.v1.UpsertAssetRequest;
 import ai.pipestream.sync.v1.WatchRequest;
@@ -120,6 +121,80 @@ class SyncTableGrpcServiceTest {
         assertThat(stub.getAsset(GetAssetRequest.newBuilder()
                 .setAssetId("confluence:page:gone").build()).getAsset().getStatus())
                 .isEqualTo(AssetSyncStatus.ASSET_SYNC_STATUS_DELETED);
+    }
+
+    /**
+     * One drive of two was read again from scratch; the other was read
+     * incrementally. A reconcile that names the first drive removes that
+     * drive's unseen rows and nothing else.
+     */
+    @Test
+    void reconcileOfOneScopeLeavesEveryOtherScopeAlone() {
+        upsert("microsoft:c1:drive_item:a-kept", "c1", "drive_item", "drive-a", "run-2");
+        upsert("microsoft:c1:drive_item:a-gone", "c1", "drive_item", "drive-a", "run-1");
+        upsert("microsoft:c1:drive_item:b-unchanged", "c1", "drive_item", "drive-b", "run-1");
+        upsert("microsoft:c1:drive_item:unscoped", "c1", "drive_item", "", "run-1");
+        upsert("microsoft:c1:drive:drive-a", "c1", "drive", "drive-a", "run-1");
+        upsert("microsoft:c2:drive_item:a-other", "c2", "drive_item", "drive-a", "run-1");
+
+        int deleted = stub.reconcileScope(ReconcileScopeRequest.newBuilder()
+                .setSource("microsoft")
+                .setConnectionId("c1")
+                .setKind("drive_item")
+                .setScope("drive-a")
+                .setRunId("run-2")
+                .build()).getDeleted();
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(status("microsoft:c1:drive_item:a-gone"))
+                .isEqualTo(AssetSyncStatus.ASSET_SYNC_STATUS_DELETED);
+        assertThat(status("microsoft:c1:drive_item:a-kept"))
+                .isEqualTo(AssetSyncStatus.ASSET_SYNC_STATUS_SYNCED);
+        // Another drive, a row that never said its scope, another kind and
+        // another connection are all outside the reconcile.
+        assertThat(status("microsoft:c1:drive_item:b-unchanged"))
+                .isEqualTo(AssetSyncStatus.ASSET_SYNC_STATUS_SYNCED);
+        assertThat(status("microsoft:c1:drive_item:unscoped"))
+                .isEqualTo(AssetSyncStatus.ASSET_SYNC_STATUS_SYNCED);
+        assertThat(status("microsoft:c1:drive:drive-a"))
+                .isEqualTo(AssetSyncStatus.ASSET_SYNC_STATUS_SYNCED);
+        assertThat(status("microsoft:c2:drive_item:a-other"))
+                .isEqualTo(AssetSyncStatus.ASSET_SYNC_STATUS_SYNCED);
+    }
+
+    @Test
+    void reconcileScopeWithoutAScopeIsRefusedAndTouchesNothing() {
+        upsert("microsoft:c1:drive_item:a-old", "c1", "drive_item", "drive-a", "run-1");
+
+        assertThatThrownBy(() -> stub.reconcileScope(ReconcileScopeRequest.newBuilder()
+                .setSource("microsoft")
+                .setConnectionId("c1")
+                .setRunId("run-2")
+                .build()))
+                .isInstanceOf(io.grpc.StatusRuntimeException.class)
+                .satisfies(e -> assertThat(((io.grpc.StatusRuntimeException) e).getStatus().getCode())
+                        .isEqualTo(io.grpc.Status.Code.INVALID_ARGUMENT))
+                .hasMessageContaining("scope is required");
+        assertThat(status("microsoft:c1:drive_item:a-old"))
+                .isEqualTo(AssetSyncStatus.ASSET_SYNC_STATUS_SYNCED);
+    }
+
+    private void upsert(String assetId, String connectionId, String kind, String scope,
+            String runId) {
+        stub.upsertAsset(UpsertAssetRequest.newBuilder()
+                .setAsset(Asset.newBuilder()
+                        .setAssetId(assetId)
+                        .setSource("microsoft")
+                        .setConnectionId(connectionId)
+                        .setKind(kind)
+                        .setScope(scope)
+                        .setRunId(runId))
+                .build());
+    }
+
+    private AssetSyncStatus status(String assetId) {
+        return stub.getAsset(GetAssetRequest.newBuilder().setAssetId(assetId).build())
+                .getAsset().getStatus();
     }
 
     @Test

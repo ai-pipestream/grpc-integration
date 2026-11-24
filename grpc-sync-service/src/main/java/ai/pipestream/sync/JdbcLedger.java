@@ -204,22 +204,18 @@ public final class JdbcLedger implements Ledger {
     }
 
     @Override
-    public int reconcile(String source, String runId, String kind, String connectionId) {
+    public int reconcile(String source, String runId, String kind, String connectionId,
+            String scope) {
         if (source == null || source.isBlank() || runId == null || runId.isBlank()) {
             throw new IllegalArgumentException("source and run_id are required");
         }
+        String within = scope == null ? "" : scope;
         List<Asset> candidates = list(source, kind == null ? "" : kind, "", false,
                 AssetSyncStatus.ASSET_SYNC_STATUS_UNSPECIFIED, 0,
                 connectionId == null ? "" : connectionId);
         int deleted = 0;
         for (Asset asset : candidates) {
-            if (asset.getStatus() == AssetSyncStatus.ASSET_SYNC_STATUS_DELETED) {
-                continue;
-            }
-            if (asset.getPhase() == AssetPhase.ASSET_PHASE_SNAPSHOT) {
-                continue;
-            }
-            if (runId.equals(asset.getRunId())) {
+            if (!AssetStore.reconcilable(asset, runId, within)) {
                 continue;
             }
             delete(asset.getAssetId(), runId, asset.getCursor());
@@ -590,6 +586,9 @@ public final class JdbcLedger implements Ledger {
             }
             if (next.getConnectionId().isEmpty()) {
                 next.setConnectionId(existing.getConnectionId());
+            }
+            if (next.getScope().isEmpty()) {
+                next.setScope(existing.getScope());
             }
             existing.getAttributesMap().forEach(next::putAttributes);
             incoming.getAttributesMap().forEach(next::putAttributes);

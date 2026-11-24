@@ -60,6 +60,54 @@ class JdbcLedgerTest {
     }
 
     @Test
+    void scopedReconcileSurvivesReopenAndLeavesOtherScopesAlone() throws Exception {
+        String jdbc = "jdbc:sqlite:" + temp.resolve("scoped.db").toAbsolutePath();
+        try (JdbcLedger first = JdbcLedger.open(jdbc)) {
+            first.upsert(row("a-kept", "drive-a", "run-1"));
+            first.upsert(row("a-gone", "drive-a", "run-1"));
+            first.upsert(row("b-unchanged", "drive-b", "run-1"));
+            first.upsert(row("unscoped", "", "run-1"));
+        }
+        try (JdbcLedger second = JdbcLedger.open(jdbc)) {
+            // The re-read of drive-a writes a-kept again, without repeating
+            // its scope: the stored scope stays.
+            second.upsert(row("a-kept", "", "run-2"));
+            assertThat(second.get("microsoft:c1:drive_item:a-kept").orElseThrow().getScope())
+                    .isEqualTo("drive-a");
+
+            assertThat(second.reconcile("microsoft", "run-2", "drive_item", "c1", "drive-a"))
+                    .isEqualTo(1);
+
+            assertThat(status(second, "a-gone"))
+                    .isEqualTo(ai.pipestream.sync.v1.AssetSyncStatus.ASSET_SYNC_STATUS_DELETED);
+            assertThat(status(second, "a-kept"))
+                    .isEqualTo(ai.pipestream.sync.v1.AssetSyncStatus.ASSET_SYNC_STATUS_SYNCED);
+            assertThat(status(second, "b-unchanged"))
+                    .isEqualTo(ai.pipestream.sync.v1.AssetSyncStatus.ASSET_SYNC_STATUS_SYNCED);
+            assertThat(status(second, "unscoped"))
+                    .isEqualTo(ai.pipestream.sync.v1.AssetSyncStatus.ASSET_SYNC_STATUS_SYNCED);
+            // A reconcile without a scope still covers every row.
+            assertThat(second.reconcile("microsoft", "run-2", "drive_item", "c1")).isEqualTo(2);
+        }
+    }
+
+    private static Asset row(String id, String scope, String runId) {
+        return Asset.newBuilder()
+                .setAssetId("microsoft:c1:drive_item:" + id)
+                .setSource("microsoft")
+                .setConnectionId("c1")
+                .setKind("drive_item")
+                .setNativeId(id)
+                .setScope(scope)
+                .setRunId(runId)
+                .build();
+    }
+
+    private static ai.pipestream.sync.v1.AssetSyncStatus status(JdbcLedger ledger, String id) {
+        return ledger.get("microsoft:c1:drive_item:" + id).orElseThrow().getStatus();
+    }
+
+    @Test
     void ledgersOpenRespectsJdbcUrl() {
         Path file = temp.resolve("from-env.db");
         Ledger ledger = Ledgers.open(Map.of(Ledgers.ENV_JDBC_URL,

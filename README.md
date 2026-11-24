@@ -139,7 +139,8 @@ SYNC_TABLE_JDBC_URL=jdbc:sqlite:/data/sync-table.db   # or SYNC_TABLE_DB=/data/s
 ```
 
 RPCs: `UpsertAsset`, `GetAsset`, `ListAssets` (stream), `Watch` (stream),
-`DeleteAsset`, `Reconcile`, `GetCheckpoint`, `PutCheckpoint`.
+`DeleteAsset`, `Reconcile`, `ReconcileScope`, `GetCheckpoint`,
+`PutCheckpoint`.
 `ConnectionService` on the same port is the connection catalog (create,
 get, list, update, delete, record-probe, plus process settings).
 Connectors, MCP, and a future UI call the generated stub; they never open
@@ -147,7 +148,12 @@ the SQLite file.
 
 `asset_id` is `{source}:{connection_id}:{kind}:{native_id}`. After a full
 crawl a connector calls `Reconcile` with that run's id so rows not seen
-this pass become `DELETED`. Attachments set `attachment=true` and
+this pass become `DELETED`. A connector can stamp `Asset.scope` (the part
+of the connection a row was read under, such as a drive id) and call
+`ReconcileScope` when a run read only that part in full: rows of another
+scope, and rows without one, are left as they are. It is its own rpc so
+that a ledger too old to know scopes answers `UNIMPLEMENTED` and does not
+reconcile the whole connection. Attachments set `attachment=true` and
 `parent_asset_id`. The store is in-memory unless `SYNC_TABLE_JDBC_URL` or
 `SYNC_TABLE_DB` points at SQLite. Handlers run on virtual threads.
 
