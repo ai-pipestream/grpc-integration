@@ -14,9 +14,16 @@ import java.util.Objects;
 
 /**
  * Builds a WARC 1.1 record list for a catalog: {@code warcinfo}, one
- * {@code resource} per live URI, one {@code conversion} per OKF markdown
- * (WARC-Refers-To the resource), and the HTML collection page as its own
- * {@code resource}. The OKF zip is not a record.
+ * {@code resource} per live URI whose bytes were captured, one
+ * {@code conversion} per OKF markdown (WARC-Refers-To the resource), and
+ * the HTML collection page as its own {@code resource}. The OKF zip is not
+ * a record.
+ *
+ * <p>An entry whose resource was not fetched
+ * ({@link CatalogEntry.Capture#NOT_FETCHED}) gets no {@code resource}
+ * record: the archive holds no bytes for its URI. Its OKF markdown is still
+ * written as a {@code conversion} record, without WARC-Refers-To, and it is
+ * still linked from the collection page.
  */
 public final class WarcArchive {
 
@@ -55,16 +62,19 @@ public final class WarcArchive {
         records.add(WarcWriter.warcinfo(date, software));
         List<CollectionPage.Link> links = new ArrayList<>();
         for (CatalogEntry entry : entries) {
-            String resourceId = WarcRecord.newRecordId();
-            records.add(new WarcRecord(
-                    WarcRecord.TYPE_RESOURCE,
-                    resourceId,
-                    date,
-                    entry.targetUri(),
-                    null,
-                    entry.mediaType(),
-                    entry.resourceBody(),
-                    Map.of()));
+            String resourceId = null;
+            if (entry.captured()) {
+                resourceId = WarcRecord.newRecordId();
+                records.add(new WarcRecord(
+                        WarcRecord.TYPE_RESOURCE,
+                        resourceId,
+                        date,
+                        entry.targetUri(),
+                        null,
+                        entry.mediaType(),
+                        entry.resourceBody(),
+                        Map.of()));
+            }
             byte[] markdown = OkfYaml.render(entry.concept()).getBytes(StandardCharsets.UTF_8);
             records.add(new WarcRecord(
                     WarcRecord.TYPE_CONVERSION,

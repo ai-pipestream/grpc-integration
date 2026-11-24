@@ -116,8 +116,12 @@ OUTPUT_DIR=/data/okf/run              # alias: OKF_DIR
 
 OKF trees land under `{prefix}/okf/` with `bundle.zip` and
 `bundle.warc.gz` beside them. WARC is a per-URI archive (ISO 28500): one
-`resource` record per live `web_url`, a `conversion` record for the OKF
-markdown, and an HTML collection page whose links are those same URIs.
+`resource` record per live `web_url` whose bytes were captured, a
+`conversion` record for the OKF markdown, and an HTML collection page whose
+links are those same URIs. An entity a source read only the metadata of (a
+`CatalogEntry.notFetched` entry, for example an attachment whose binary was
+not downloaded) has its markdown and its link and no `resource` record: a
+resource body is never made up for bytes that were not read.
 The zip is **not** stored inside the WARC. Protobuf is the same binary
 Kafka Connect publishes; JSON is a file export, not the gRPC wire.
 
