@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package ai.pipestream.sync.v1;
+
+option java_multiple_files = true;
+option java_package = "ai.pipestream.sync.v1";
+
+// ============================================================================
+// ACL COMPLETENESS - whether a connector read the access-control records of
+// one access-control owner (a space, site, list, page or item) in full.
+// Connectors emit their source's own ACL records; this marker is the one
+// shared addition. A consumer that trims by permission denies access to an
+// owner whose marker is anything but COMPLETE.
+// ============================================================================
+
+// Whether the access-control records read for one owner are the whole of them.
+enum AclCompleteness {
+  // Not assessed: the entity is not an access-control owner, or it was not
+  // produced by a security read.
+  ACL_COMPLETENESS_UNSPECIFIED = 0;
+  // Every security route of the owner answered and every page of each paged
+  // list was read. A route the source does not serve at all counts as
+  // answered with no entries.
+  ACL_COMPLETENESS_COMPLETE = 1;
+  // At least one security route was refused or failed, so the records for
+  // this owner are missing or partial. Deny by default.
+  ACL_COMPLETENESS_UNAVAILABLE = 2;
+}

@@ -14,7 +14,8 @@ option java_package = "ai.pipestream.sync.v1";
 // ledger process stores the catalog next to assets so a frontend has a
 // single gRPC target for "what sources exist" and "what we have crawled".
 // Secrets are write-only: Create/Update accept them; Get/List never return
-// them (has_token / has_client_secret say whether one is stored).
+// them (has_token / has_client_secret / has_client_certificate say whether
+// one is stored).
 // ============================================================================
 
 // Catalog of upstream connections and their output bindings.
@@ -132,12 +133,19 @@ message Connection {
   google.protobuf.Timestamp updated_at = 19;
   // When RecordProbe last ran; unset if never probed.
   google.protobuf.Timestamp last_tested_at = 20;
+  // Write-only certificate credential (Microsoft): the private key and the
+  // certificate in PEM. Signs in instead of client_secret when set. Get and
+  // List always leave empty.
+  string client_certificate_pem = 21;
+  // True when a certificate credential is stored.
+  bool has_client_certificate = 22;
 }
 
 // Request to create a catalog row.
 message CreateConnectionRequest {
   // The row to store. connection_id may be empty (the service fills it).
-  // token / client_secret are stored and then stripped from the response.
+  // token / client_secret / client_certificate_pem are stored and then
+  // stripped from the response.
   Connection connection = 1;
 }
 
@@ -151,7 +159,7 @@ message CreateConnectionResponse {
 message GetConnectionRequest {
   // The connection_id to fetch.
   string connection_id = 1;
-  // When true, include token / client_secret. Only the Confluence /
+  // When true, include token / client_secret / client_certificate_pem. Only the Confluence /
   // Microsoft processes set this; MCP and a future UI must leave it false.
   bool include_secret = 2;
 }

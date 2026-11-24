@@ -52,6 +52,35 @@ class OkfConceptAndYamlTest {
     }
 
     @Test
+    void toBuilderCopiesEveryField() {
+        OkfConcept page = OkfConcept.of("Page")
+                .title("Doc")
+                .description("A page")
+                .resource("https://example/wiki/pages/200")
+                .tag("eng")
+                .generated(new OkfConcept.Generated("process:test", AT))
+                .verified(new OkfConcept.Verified("human:ada", AT))
+                .status(OkfConcept.Status.DRAFT)
+                .staleAfter(AT.plusSeconds(3600))
+                .usageWindow(new OkfConcept.UsageWindow(AT, AT.plusSeconds(60)))
+                .source(new OkfConcept.Source("s1", "https://example/wiki/pages/200", "Doc",
+                        "process:test", 2L, AT, null))
+                .extra("confluence_id", "200")
+                .body("hello")
+                .build();
+        OkfConcept computation = OkfSkills.computation("process:test", AT);
+
+        assertThat(OkfYaml.render(page.toBuilder().build())).isEqualTo(OkfYaml.render(page));
+        assertThat(OkfYaml.render(computation.toBuilder().build()))
+                .isEqualTo(OkfYaml.render(computation));
+        // A change made on the copy leaves the original as it was.
+        OkfConcept changed = page.toBuilder().extra("capture", "not_fetched").build();
+        assertThat(changed.extra()).containsEntry("capture", "not_fetched")
+                .containsEntry("confluence_id", "200");
+        assertThat(page.extra()).doesNotContainKey("capture");
+    }
+
+    @Test
     void multipleVerifiedEventsAreAList() {
         OkfConcept concept = OkfConcept.of("Page")
                 .verified(new OkfConcept.Verified("human:ada", AT))

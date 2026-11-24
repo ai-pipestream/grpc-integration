@@ -27,6 +27,7 @@ class JdbcLedgerTest {
                     .setKind(ConnectionKind.CONNECTION_KIND_CONFLUENCE)
                     .setDisplayName("Acme")
                     .setToken("secret")
+                    .setClientCertificatePem("key-and-certificate-pem")
                     .build(), true);
             first.upsert(Asset.newBuilder()
                     .setAssetId("confluence:acme:page:1")
@@ -46,6 +47,8 @@ class JdbcLedgerTest {
         try (JdbcLedger second = JdbcLedger.open(jdbc)) {
             Connection row = second.getConnection("acme").orElseThrow();
             assertThat(row.getToken()).isEqualTo("secret");
+            assertThat(row.getClientCertificatePem()).isEqualTo("key-and-certificate-pem");
+            assertThat(row.getHasClientCertificate()).isTrue();
             assertThat(second.get("confluence:acme:page:1").orElseThrow().getTitle())
                     .isEqualTo("Design");
             assertThat(second.list("confluence", "", "", false,

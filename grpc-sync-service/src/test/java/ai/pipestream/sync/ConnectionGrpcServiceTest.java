@@ -99,6 +99,43 @@ class ConnectionGrpcServiceTest {
     }
 
     @Test
+    void aCertificateCredentialIsStoredRedactedAndKeptOnUpdate() {
+        Connection created = stub.createConnection(CreateConnectionRequest.newBuilder()
+                .setConnection(Connection.newBuilder()
+                        .setConnectionId("contoso")
+                        .setKind(ConnectionKind.CONNECTION_KIND_MICROSOFT)
+                        .setDisplayName("Contoso")
+                        .setTenantId("tenant")
+                        .setClientId("client")
+                        .setClientCertificatePem("key-and-certificate-pem"))
+                .build()).getConnection();
+        assertThat(created.getClientCertificatePem()).isEmpty();
+        assertThat(created.getHasClientCertificate()).isTrue();
+        assertThat(created.getHasClientSecret()).isFalse();
+
+        assertThat(stub.listConnections(ListConnectionsRequest.getDefaultInstance())
+                .getConnectionsList()).allSatisfy(row -> {
+                    assertThat(row.getClientCertificatePem()).isEmpty();
+                    assertThat(row.getHasClientCertificate()).isTrue();
+                });
+        assertThat(stub.getConnection(GetConnectionRequest.newBuilder()
+                .setConnectionId("contoso").build()).getConnection().getClientCertificatePem()).isEmpty();
+
+        stub.updateConnection(UpdateConnectionRequest.newBuilder()
+                .setConnection(Connection.newBuilder()
+                        .setConnectionId("contoso")
+                        .setKind(ConnectionKind.CONNECTION_KIND_MICROSOFT)
+                        .setDisplayName("Contoso Ltd"))
+                .build());
+        Connection secret = stub.getConnection(GetConnectionRequest.newBuilder()
+                .setConnectionId("contoso")
+                .setIncludeSecret(true)
+                .build()).getConnection();
+        assertThat(secret.getDisplayName()).isEqualTo("Contoso Ltd");
+        assertThat(secret.getClientCertificatePem()).isEqualTo("key-and-certificate-pem");
+    }
+
+    @Test
     void recordProbeAndDelete() {
         stub.createConnection(CreateConnectionRequest.newBuilder()
                 .setConnection(Connection.newBuilder()

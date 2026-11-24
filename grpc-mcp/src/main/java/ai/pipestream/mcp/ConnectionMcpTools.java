@@ -56,6 +56,8 @@ public final class ConnectionMcpTools {
                         "tenantId", "Microsoft tenant",
                         "clientId", "Microsoft client id",
                         "clientSecret", "Microsoft client secret",
+                        "clientCertificatePem", "Microsoft certificate credential: private key and"
+                                + " certificate PEM (stored, never returned)",
                         "siteId", "Microsoft site id",
                         "driveIds", "Comma-separated drive ids"),
                         List.of("kind", "displayName")),
@@ -210,6 +212,7 @@ public final class ConnectionMcpTools {
                 .setTenantId(McpJson.argString(args, "tenantId", ""))
                 .setClientId(McpJson.argString(args, "clientId", ""))
                 .setClientSecret(McpJson.argString(args, "clientSecret", ""))
+                .setClientCertificatePem(McpJson.argString(args, "clientCertificatePem", ""))
                 .setSiteId(McpJson.argString(args, "siteId", ""));
         for (String space : csv(McpJson.argString(args, "spaceKeys", ""))) {
             connection.addSpaceKeys(space);
