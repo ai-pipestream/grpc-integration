@@ -111,6 +111,44 @@ class AssetStoreTest {
     }
 
     @Test
+    void reconcileOfAScopeSkipsOtherScopesAndRowsWithoutOne() {
+        AssetStore store = new AssetStore();
+        store.upsert(scoped("a-gone", "drive-a", "run-1"));
+        store.upsert(scoped("a-kept", "drive-a", "run-2"));
+        store.upsert(scoped("b-unchanged", "drive-b", "run-1"));
+        store.upsert(scoped("unscoped", "", "run-1"));
+        // A later write that does not repeat the scope keeps it.
+        store.upsert(scoped("a-kept", "", "run-2"));
+        assertThat(store.get("microsoft:c1:drive_item:a-kept").orElseThrow().getScope())
+                .isEqualTo("drive-a");
+
+        assertThat(store.reconcile("microsoft", "run-2", "drive_item", "c1", "drive-a"))
+                .isEqualTo(1);
+        assertThat(store.get("microsoft:c1:drive_item:a-gone").orElseThrow().getStatus())
+                .isEqualTo(AssetSyncStatus.ASSET_SYNC_STATUS_DELETED);
+        assertThat(store.reconcile("microsoft", "run-2", "drive_item", "c1", "drive-none"))
+                .isZero();
+        assertThat(store.list("microsoft", "drive_item", "", false,
+                AssetSyncStatus.ASSET_SYNC_STATUS_SYNCED, 0, "c1"))
+                .extracting(Asset::getNativeId)
+                .containsExactlyInAnyOrder("a-kept", "b-unchanged", "unscoped");
+        // Without a scope every row of the connection is in reach, as before.
+        assertThat(store.reconcile("microsoft", "run-2", "drive_item", "c1", null)).isEqualTo(2);
+    }
+
+    private static Asset scoped(String id, String scope, String runId) {
+        return Asset.newBuilder()
+                .setAssetId("microsoft:c1:drive_item:" + id)
+                .setSource("microsoft")
+                .setConnectionId("c1")
+                .setKind("drive_item")
+                .setNativeId(id)
+                .setScope(scope)
+                .setRunId(runId)
+                .build();
+    }
+
+    @Test
     void checkpointsRoundTripPerScope() {
         AssetStore store = new AssetStore();
         store.putCheckpoint(Checkpoint.newBuilder()

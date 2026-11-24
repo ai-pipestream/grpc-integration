@@ -60,15 +60,36 @@ public interface Ledger extends AutoCloseable {
     Asset delete(String assetId, String runId, String cursor);
 
     /**
-     * Marks unseen rows deleted for a source (and optional connection).
+     * Marks unseen rows deleted for a source (and optional connection),
+     * whatever their scope. Forwards to
+     * {@link #reconcile(String, String, String, String, String)} with no scope.
      *
      * @param source source family; required
      * @param runId current run; required
      * @param kind optional kind filter
-     * @param connectionId optional connection scope
+     * @param connectionId optional connection
      * @return rows newly marked deleted
      */
-    int reconcile(String source, String runId, String kind, String connectionId);
+    default int reconcile(String source, String runId, String kind, String connectionId) {
+        return reconcile(source, runId, kind, connectionId, "");
+    }
+
+    /**
+     * Marks unseen rows deleted for a source, an optional connection and an
+     * optional scope within it. With a scope, only rows whose
+     * {@code Asset.scope} equals it are looked at: rows of another scope and
+     * rows without one are left as they are, because the run that names one
+     * scope says nothing about the rest.
+     *
+     * @param source source family; required
+     * @param runId current run; required
+     * @param kind optional kind filter
+     * @param connectionId optional connection
+     * @param scope optional scope within the connection ({@code Asset.scope});
+     *        empty matches every row
+     * @return rows newly marked deleted
+     */
+    int reconcile(String source, String runId, String kind, String connectionId, String scope);
 
     /**
      * Stores a checkpoint.

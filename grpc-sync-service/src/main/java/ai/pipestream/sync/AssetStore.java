@@ -103,6 +103,9 @@ public final class AssetStore implements Ledger {
                 if (next.getParentAssetId().isEmpty()) {
                     next.setParentAssetId(existing.getParentAssetId());
                 }
+                if (next.getScope().isEmpty()) {
+                    next.setScope(existing.getScope());
+                }
                 existing.getAttributesMap().forEach(next::putAttributes);
                 incoming.getAttributesMap().forEach(next::putAttributes);
             }
@@ -223,11 +226,13 @@ public final class AssetStore implements Ledger {
     }
 
     @Override
-    public int reconcile(String source, String runId, String kind, String connectionId) {
+    public int reconcile(String source, String runId, String kind, String connectionId,
+            String scope) {
         if (source.isBlank() || runId.isBlank()) {
             throw new IllegalArgumentException("source and run_id are required");
         }
         String connection = connectionId == null ? "" : connectionId;
+        String within = scope == null ? "" : scope;
         int deleted = 0;
         for (Asset asset : List.copyOf(assets.values())) {
             if (!source.equals(asset.getSource())) {
@@ -239,19 +244,32 @@ public final class AssetStore implements Ledger {
             if (!kind.isEmpty() && !kind.equals(asset.getKind())) {
                 continue;
             }
-            if (asset.getStatus() == AssetSyncStatus.ASSET_SYNC_STATUS_DELETED) {
-                continue;
-            }
-            if (asset.getPhase() == AssetPhase.ASSET_PHASE_SNAPSHOT) {
-                continue;
-            }
-            if (runId.equals(asset.getRunId())) {
+            if (!reconcilable(asset, runId, within)) {
                 continue;
             }
             delete(asset.getAssetId(), runId, asset.getCursor());
             deleted++;
         }
         return deleted;
+    }
+
+    /**
+     * Whether a reconcile of {@code runId} marks {@code asset} deleted: a
+     * live row the run did not write, inside {@code scope} when one is named.
+     * A row without a scope is outside every named scope.
+     *
+     * @param asset a row of the reconciled source, connection and kind
+     * @param runId the run being reconciled
+     * @param scope the scope the run enumerated; empty for every row
+     * @return true when the row is to be marked deleted
+     */
+    static boolean reconcilable(Asset asset, String runId, String scope) {
+        if (!scope.isEmpty() && !scope.equals(asset.getScope())) {
+            return false;
+        }
+        return asset.getStatus() != AssetSyncStatus.ASSET_SYNC_STATUS_DELETED
+                && asset.getPhase() != AssetPhase.ASSET_PHASE_SNAPSHOT
+                && !runId.equals(asset.getRunId());
     }
 
     /**

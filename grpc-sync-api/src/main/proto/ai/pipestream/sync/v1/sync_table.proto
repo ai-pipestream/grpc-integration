@@ -29,6 +29,15 @@ service SyncTableService {
   // After a crawl run, mark source-scoped rows not seen in that run deleted.
   rpc Reconcile(ReconcileRequest) returns (ReconcileResponse);
 
+  // After a run that read one scope of a connection in full (one drive
+  // whose delta link expired, say) and says nothing about the rest: mark
+  // that scope's rows not seen in the run deleted. Rows of any other
+  // scope, and rows without a scope, are left as they are. A separate rpc
+  // and not a field of ReconcileRequest, so that a ledger that does not
+  // know scopes answers UNIMPLEMENTED and never reconciles the whole
+  // connection in its place.
+  rpc ReconcileScope(ReconcileScopeRequest) returns (ReconcileScopeResponse);
+
   // Resume cursor for a (source, scope) pair.
   rpc GetCheckpoint(GetCheckpointRequest) returns (GetCheckpointResponse);
 
@@ -112,6 +121,12 @@ message Asset {
   // Catalog connection this row belongs to. Empty = the process-default
   // connection (env credentials, connection_id "default").
   string connection_id = 21;
+  // The part of the connection the row was read under: the same value as
+  // Checkpoint.scope for the sweep that wrote it (a drive id, a space key,
+  // "{site_id}/{list_id}"). Empty = the connector did not say; such a row
+  // is reconciled by Reconcile only, never by ReconcileScope. An upsert
+  // that leaves it empty keeps the stored value.
+  string scope = 22;
   // Connector-specific attributes (change_id, operation name, ...).
   map<string, string> attributes = 99;
 }
@@ -213,6 +228,27 @@ message ReconcileRequest {
 
 // How many rows Reconcile marked deleted.
 message ReconcileResponse {
+  // Count of rows newly marked deleted.
+  int32 deleted = 1;
+}
+
+// Request to mark the rows of one scope not seen in this run as deleted.
+message ReconcileScopeRequest {
+  // Connector family to reconcile. Required.
+  string source = 1;
+  // Rows whose run_id is not this value are marked deleted. Required.
+  string run_id = 2;
+  // Optional kind filter (empty = every kind of the scope).
+  string kind = 3;
+  // Catalog connection to reconcile. Empty = every connection of source.
+  string connection_id = 4;
+  // The scope the run enumerated in full. Required. Only rows whose
+  // Asset.scope equals this value are reconciled.
+  string scope = 5;
+}
+
+// How many rows ReconcileScope marked deleted.
+message ReconcileScopeResponse {
   // Count of rows newly marked deleted.
   int32 deleted = 1;
 }
