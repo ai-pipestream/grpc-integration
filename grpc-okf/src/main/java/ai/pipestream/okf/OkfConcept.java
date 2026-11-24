@@ -238,6 +238,34 @@ public final class OkfConcept {
     }
 
     /**
+     * A builder that starts from every field of this concept.
+     *
+     * @return a builder whose {@code build()} returns an equal-valued copy
+     *         until something is changed
+     */
+    public Builder toBuilder() {
+        Builder builder = new Builder(type);
+        builder.title = title;
+        builder.description = description;
+        builder.resource = resource;
+        builder.tags.addAll(tags);
+        builder.sources.addAll(sources);
+        builder.usageWindow = usageWindow;
+        builder.generated = generated;
+        builder.verified.addAll(verified);
+        builder.status = status;
+        builder.staleAfter = staleAfter;
+        builder.runtime = runtime;
+        builder.parameters.addAll(parameters);
+        builder.computation = computation;
+        builder.executor = executor;
+        builder.attester = attester;
+        builder.extra.putAll(extra);
+        builder.body = body;
+        return builder;
+    }
+
+    /**
      * Required type.
      *
      * @return type

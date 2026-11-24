@@ -70,6 +70,47 @@ class WarcWriterTest {
     }
 
     @Test
+    void anEntryWhoseResourceWasNotFetchedHasNoResourceRecord() {
+        CatalogEntry attachment = CatalogEntry.notFetched(
+                "attachments/9.md",
+                OkfConcept.of("Attachment").title("report.pdf")
+                        .resource("https://wiki.example/download/report.pdf")
+                        .generated(new OkfConcept.Generated("process:test", AT))
+                        .body("File size: 1048576 bytes")
+                        .build(),
+                "https://wiki.example/download/report.pdf",
+                "application/pdf",
+                "attachment");
+        CatalogEntry page = CatalogEntry.text(
+                "pages/200.md",
+                OkfConcept.of("Page").title("Doc").body("hello").build(),
+                "https://wiki.example/pages/200",
+                "text/html",
+                "<p>hello</p>",
+                "page");
+        List<WarcParse.Record> records = WarcParse.parse(WarcWriter.toBytes(
+                WarcArchive.records(AT, "grpc-okf-test", "Crawl", "intro",
+                        List.of(attachment, page), null)));
+
+        // warcinfo, the attachment's markdown, the page and its markdown, the collection.
+        assertThat(records).extracting(WarcParse.Record::type)
+                .containsExactly("warcinfo", "conversion", "resource", "conversion", "resource");
+        // Nothing in the archive claims to be the attachment's bytes.
+        assertThat(records).extracting(WarcParse.Record::targetUri)
+                .doesNotContain("https://wiki.example/download/report.pdf");
+        WarcParse.Record markdown = records.get(1);
+        assertThat(markdown.targetUri()).isEqualTo("urn:okf:0.2:attachments/9.md");
+        assertThat(markdown.refersTo()).isNull();
+        assertThat(new String(markdown.block(), StandardCharsets.UTF_8))
+                .contains("type: Attachment");
+        // The captured page next to it still refers to its resource.
+        assertThat(records.get(3).refersTo()).isEqualTo(records.get(2).recordId());
+        // The collection page still links the attachment by its live URI.
+        assertThat(new String(records.get(4).block(), StandardCharsets.UTF_8))
+                .contains("href=\"https://wiki.example/download/report.pdf\"");
+    }
+
+    @Test
     void extraHeadersAndWarcDateAreEmitted() {
         byte[] html = "<p>x</p>".getBytes(StandardCharsets.UTF_8);
         CatalogEntry entry = CatalogEntry.text(
